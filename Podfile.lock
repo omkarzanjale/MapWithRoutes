@@ -1,0 +1,20 @@
+PODS:
+  - GooglePlaces (6.1.0)
+  - Toast-Swift (5.0.1)
+
+DEPENDENCIES:
+  - GooglePlaces
+  - Toast-Swift
+
+SPEC REPOS:
+  trunk:
+    - GooglePlaces
+    - Toast-Swift
+
+SPEC CHECKSUMS:
+  GooglePlaces: 66f0796e44d3bd83d82b1f19d8fe3cd7062fe930
+  Toast-Swift: 9b6a70f28b3bf0b96c40d46c0c4b9d6639846711
+
+PODFILE CHECKSUM: 92e399cad5a526c5a965ab00a722cb4e8d4b0196
+
+COCOAPODS: 1.11.2
