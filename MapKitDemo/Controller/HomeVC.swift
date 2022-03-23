@@ -11,6 +11,22 @@ import CoreLocation
 import GooglePlaces
 import Toast_Swift
 
+enum RouteColor:Int {
+    case red,blue,green,purple
+    var selectedColor: UIColor{
+        switch self {
+        case .red:
+            return UIColor.red
+        case .blue:
+            return UIColor.blue
+        case .green:
+            return UIColor.green
+        case .purple:
+            return UIColor.purple
+        }
+    }
+}
+
 class HomeVC: UIViewController {
     
     @IBOutlet weak var mapView: MKMapView!
@@ -22,8 +38,9 @@ class HomeVC: UIViewController {
     lazy var locationManager = CLLocationManager()
     lazy var currentLocation = CLLocationCoordinate2D()
     lazy var autoCompleteController = GMSAutocompleteViewController()
-    var isSerachBtnClicked = false
+    var mapViewModel = MapViewModel()
     var isPinTapped = false
+    var routeColor: RouteColor?
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -50,7 +67,7 @@ class HomeVC: UIViewController {
         }
     }
     //
-    //MARK: Search Btn
+    //MARK: Button Actions
     //
     @IBAction func searchBtnAction(_ sender: Any) {
         self.view.makeToast("Add API Key first!")
@@ -66,12 +83,18 @@ class HomeVC: UIViewController {
         present(autoCompleteController, animated: true)
     }
     
+    @IBAction func directionBtnAction(_ sender: Any) {
+        self.mapView.removeOverlays(mapView.overlays)
+        let directionDetailsVC = storyboard?.instantiateViewController(withIdentifier: "DirectionDetailsVC") as! DirectionDetailsVC
+        directionDetailsVC.delegate = self
+        self.present(directionDetailsVC, animated: true)
+    }
+    
     @IBAction func currentLocBtnAction(_ sender: Any) {
         self.setPinUsingMKPointAnnotation(location: self.currentLocation)
     }
     
     @objc func tapGestureAction(sender: UIGestureRecognizer) {
-        self.isSerachBtnClicked = false
         let locFromTap = sender.location(in: mapView)
         let coordinatesOnMap = mapView.convert(locFromTap, toCoordinateFrom: mapView)
         self.setPinUsingMKPointAnnotation(location: coordinatesOnMap)
@@ -85,30 +108,6 @@ class HomeVC: UIViewController {
             self.titleSubtitleView.isHidden = true
         }
     }
-    //
-    //MARK: Get Address
-    //
-    private func getAddress(coordnates: CLLocationCoordinate2D, complisherHandler:@escaping(Address?)->()  ) {
-        let geoCoder = CLGeocoder()
-        let location = CLLocation(latitude: coordnates.latitude, longitude: coordnates.longitude)
-        geoCoder.reverseGeocodeLocation(location, completionHandler:
-                                            { placemarks, error -> Void in
-            guard let placeMark = placemarks?.first else { return }
-            if placeMark.isoCountryCode == "IN"{
-                DispatchQueue.main.async {
-                    self.lblAddress.isHidden = false
-                }
-                let address = Address(placeMark: placeMark.name ?? "-", country: placeMark.country ?? "-", city: placeMark.subAdministrativeArea ?? "-", zipCode: placeMark.isoCountryCode ?? "-")
-                complisherHandler(address)
-            }else {
-                DispatchQueue.main.async {
-                    self.lblAddress.isHidden = true
-                }
-                complisherHandler(nil)
-            }
-            
-        })
-    }
 }
 //
 //MARK: MKMapViewDelegate
@@ -116,21 +115,40 @@ class HomeVC: UIViewController {
 extension HomeVC: MKMapViewDelegate {
     
     func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
-        let center = mapView.centerCoordinate
-        let queue1 = DispatchQueue.global(qos: .background)
-        queue1.async {
-            self.getAddress(coordnates: center) { address in
-                if let address = address {
-                    self.lblAddress.text = address.fullAddress
-                    self.lblPinTitle.text = address.name
-                    self.lblPinSubtitle.text = address.city
-                }else{
-                    self.view.makeToast("Location out of INDIA!")
+        if routeColor == nil {
+            let center = mapView.centerCoordinate
+            let queue1 = DispatchQueue.global(qos: .background)
+            queue1.async {
+                self.mapViewModel.getAddress(coordnates: center) { address in
+                    if let address = address {
+                        self.pin.isHidden = false
+                        self.lblAddress.isHidden = false
+                        self.lblAddress.text = address.fullAddress
+                        self.lblPinTitle.text = address.name
+                        self.lblPinSubtitle.text = address.city
+                    }else{
+                        self.lblAddress.isHidden = true
+                        self.view.makeToast("Location out of INDIA!")
+                    }
+                    
                 }
-                
             }
+        }else {
+            self.pin.isHidden = true
+            self.lblAddress.isHidden = true
         }
     }
+    //
+    //MARK: Render route line
+    //
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        let renderer = MKPolylineRenderer(overlay: overlay)
+        renderer.strokeColor = self.routeColor?.selectedColor
+        renderer.lineWidth = 5.0
+        return renderer
+        
+    }
+
 }
 
 extension HomeVC: CLLocationManagerDelegate {
@@ -148,30 +166,20 @@ extension HomeVC: CLLocationManagerDelegate {
 extension HomeVC {
     //MARK: Set Pin
     func setPinUsingMKPointAnnotation(location: CLLocationCoordinate2D){
-            self.getAddress(coordnates: location) { address in
+        self.mapViewModel.getAddress(coordnates: location) { address in
                 if let address = address {
+                    self.lblAddress.isHidden = false
                     self.lblAddress.text = address.fullAddress
                     self.lblPinTitle.text = address.name
                     self.lblPinSubtitle.text = address.city
                     let coordinateRegion = MKCoordinateRegion(center: location, latitudinalMeters: 800, longitudinalMeters: 800)
                     self.mapView.setRegion(coordinateRegion, animated: true)
                 }else {
+                    self.lblAddress.isHidden = true
                     self.view.makeToast("Location out of INDIA!")
                 }
                 
             }
-    }
-    
-    private func searchBaseOn(name: String) {
-        let localSearchRequest = MKLocalSearch.Request()
-        localSearchRequest.naturalLanguageQuery = name
-        let localSearch = MKLocalSearch(request: localSearchRequest)
-        localSearch.start { [weak self] response, error in
-            guard error == nil else {return}
-            guard let response = response else {return}
-            let coordinate = CLLocationCoordinate2D(latitude: response.boundingRegion.center.latitude, longitude: response.boundingRegion.center.longitude)
-            self?.setPinUsingMKPointAnnotation(location: coordinate)
-        }
     }
 }
 //
@@ -179,8 +187,11 @@ extension HomeVC {
 //
 extension HomeVC: GMSAutocompleteViewControllerDelegate{
     func viewController(_ viewController: GMSAutocompleteViewController, didAutocompleteWith place: GMSPlace) {
-        self.searchBaseOn(name: place.name ?? "")
-        dismiss(animated: true)
+        self.mapViewModel.searchBaseOn(name: place.name ?? "") {[weak self] coordinate in
+            self?.setPinUsingMKPointAnnotation(location: coordinate)
+            self?.dismiss(animated: true)
+        }
+        
     }
     
     func viewController(_ viewController: GMSAutocompleteViewController, didFailAutocompleteWithError error: Error) {
@@ -189,5 +200,27 @@ extension HomeVC: GMSAutocompleteViewControllerDelegate{
     
     func wasCancelled(_ viewController: GMSAutocompleteViewController) {
         dismiss(animated: true)
+    }
+}
+
+extension HomeVC: DirectionProtocol {
+    
+    private func displayRoutes(_ routes: [MKRoute]) {
+        for i in 0..<routes.count {
+            self.routeColor = RouteColor(rawValue: i) ?? .red
+            self.mapView.addOverlay(routes[i].polyline)
+            self.mapView.setVisibleMapRect(routes[i].polyline.boundingMapRect, edgePadding: UIEdgeInsets(top: 100, left: 100, bottom: 100, right: 100), animated: true)
+        }
+    }
+    
+    
+    func directionDetails(sourcePoint: String, distinationPoint: String) {
+        mapViewModel.searchBaseOn(name: sourcePoint){ [weak self] sourceCoordinates in
+            self?.mapViewModel.searchBaseOn(name: distinationPoint) { distinationCoordinates in
+                self?.mapViewModel.showRouteOnMap(pickupCoordinate: sourceCoordinates, destinationCoordinate: distinationCoordinates, complesherHandler: { routes in
+                    self?.displayRoutes(routes)
+                })
+            }
+        }
     }
 }
