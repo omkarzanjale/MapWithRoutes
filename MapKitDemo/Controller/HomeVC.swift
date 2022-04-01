@@ -32,27 +32,36 @@ class HomeVC: UIViewController {
     @IBOutlet weak var mapView: MKMapView!
     @IBOutlet weak var lblAddress: UILabel!
     @IBOutlet weak var titleSubtitleView: UIView!
+    @IBOutlet weak var directionDetailsView: UIView!
     @IBOutlet weak var pin: UIImageView!
+    @IBOutlet weak var lblSource: UILabel!
+    @IBOutlet weak var lblDistination: UILabel!
     @IBOutlet weak var lblPinTitle: UILabel!
     @IBOutlet weak var lblPinSubtitle: UILabel!
+    @IBOutlet weak var lblDistance: UILabel!
+    @IBOutlet weak var img: UIImageView!
     lazy var locationManager = CLLocationManager()
     lazy var currentLocation = CLLocationCoordinate2D()
     lazy var autoCompleteController = GMSAutocompleteViewController()
     var mapViewModel = MapViewModel()
     var isPinTapped = false
+    var transportType = "Walking"
     var routeColor: RouteColor?
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        img.transform = CGAffineTransform(scaleX: -2, y: 1);
         config()
     }
     
     private func config() {
         self.titleSubtitleView.isHidden = true
+        self.directionDetailsView.isHidden = true
         mapView.delegate = self
         if ((lblAddress.text?.isEmpty) != nil){
             self.lblAddress.isHidden = true
         }
+    
         //Map tap gesture
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tapGestureAction))
         self.mapView.addGestureRecognizer(tapGesture)
@@ -84,9 +93,9 @@ class HomeVC: UIViewController {
     }
     
     @IBAction func directionBtnAction(_ sender: Any) {
-        self.mapView.removeOverlays(mapView.overlays)
         let directionDetailsVC = storyboard?.instantiateViewController(withIdentifier: "DirectionDetailsVC") as! DirectionDetailsVC
         directionDetailsVC.delegate = self
+        directionDetailsVC.currentLocation = currentLocation
         self.present(directionDetailsVC, animated: true)
     }
     
@@ -130,7 +139,6 @@ extension HomeVC: MKMapViewDelegate {
                         self.lblAddress.isHidden = true
                         self.view.makeToast("Location out of INDIA!")
                     }
-                    
                 }
             }
         }else {
@@ -145,10 +153,11 @@ extension HomeVC: MKMapViewDelegate {
         let renderer = MKPolylineRenderer(overlay: overlay)
         renderer.strokeColor = self.routeColor?.selectedColor
         renderer.lineWidth = 5.0
+        if transportType == "Walking" {
+            renderer.lineDashPattern = [0, 10]
+        }
         return renderer
-        
     }
-
 }
 
 extension HomeVC: CLLocationManagerDelegate {
@@ -165,21 +174,26 @@ extension HomeVC: CLLocationManagerDelegate {
 
 extension HomeVC {
     //MARK: Set Pin
+    private func setCustomPin(location: CLLocationCoordinate2D) {
+        let annotation = MKPointAnnotation()
+        annotation.coordinate = location
+        mapView.addAnnotation(annotation)
+    }
+    
     func setPinUsingMKPointAnnotation(location: CLLocationCoordinate2D){
         self.mapViewModel.getAddress(coordnates: location) { address in
-                if let address = address {
-                    self.lblAddress.isHidden = false
-                    self.lblAddress.text = address.fullAddress
-                    self.lblPinTitle.text = address.name
-                    self.lblPinSubtitle.text = address.city
-                    let coordinateRegion = MKCoordinateRegion(center: location, latitudinalMeters: 800, longitudinalMeters: 800)
-                    self.mapView.setRegion(coordinateRegion, animated: true)
-                }else {
-                    self.lblAddress.isHidden = true
-                    self.view.makeToast("Location out of INDIA!")
-                }
-                
+            if let address = address {
+                self.lblAddress.isHidden = false
+                self.lblAddress.text = address.fullAddress
+                self.lblPinTitle.text = address.name
+                self.lblPinSubtitle.text = address.city
+                let coordinateRegion = MKCoordinateRegion(center: location, latitudinalMeters: 800, longitudinalMeters: 800)
+                self.mapView.setRegion(coordinateRegion, animated: true)
+            }else {
+                self.lblAddress.isHidden = true
+                self.view.makeToast("Location out of INDIA!")
             }
+        }
     }
 }
 //
@@ -191,7 +205,6 @@ extension HomeVC: GMSAutocompleteViewControllerDelegate{
             self?.setPinUsingMKPointAnnotation(location: coordinate)
             self?.dismiss(animated: true)
         }
-        
     }
     
     func viewController(_ viewController: GMSAutocompleteViewController, didFailAutocompleteWithError error: Error) {
@@ -202,7 +215,9 @@ extension HomeVC: GMSAutocompleteViewControllerDelegate{
         dismiss(animated: true)
     }
 }
-
+//
+//MARK: Map Routes
+//
 extension HomeVC: DirectionProtocol {
     
     private func displayRoutes(_ routes: [MKRoute]) {
@@ -213,13 +228,49 @@ extension HomeVC: DirectionProtocol {
         }
     }
     
+    func closeDirection() {
+        self.routeColor = nil
+        self.pin.isHidden = false
+        self.directionDetailsView.isHidden = true
+        self.mapView.removeOverlays(mapView.overlays)
+        for previousAnnotation in mapView.annotations {
+            mapView.removeAnnotation(previousAnnotation)
+        }
+    }
     
-    func directionDetails(sourcePoint: String, distinationPoint: String) {
+    private func calculateDistance(startPoint: CLLocationCoordinate2D, endPoint: CLLocationCoordinate2D) {
+        let start = CLLocation(latitude: startPoint.latitude, longitude: startPoint.longitude)
+        let distination = CLLocation(latitude: endPoint.latitude, longitude: endPoint.longitude)
+        let distance = start.distance(from: distination)
+        let result = Double(distance) / 1000
+        let y = Double(round(10 * result)) / 10
+        self.lblDistance.text = String(y) + " km"
+    }
+    
+    func directionDetails(sourcePoint: String, distinationPoint: String,transportType: String) {
+        self.directionDetailsView.isHidden = false
+        self.transportType = transportType
+        self.mapView.removeOverlays(mapView.overlays)
+        for previousAnnotation in mapView.annotations {
+            mapView.removeAnnotation(previousAnnotation)
+        }
         mapViewModel.searchBaseOn(name: sourcePoint){ [weak self] sourceCoordinates in
+            self?.setCustomPin(location: sourceCoordinates)
             self?.mapViewModel.searchBaseOn(name: distinationPoint) { distinationCoordinates in
-                self?.mapViewModel.showRouteOnMap(pickupCoordinate: sourceCoordinates, destinationCoordinate: distinationCoordinates, complesherHandler: { routes in
-                    self?.displayRoutes(routes)
-                })
+                self?.setCustomPin(location: distinationCoordinates)
+                self?.calculateDistance(startPoint: sourceCoordinates, endPoint: distinationCoordinates)
+                self?.lblSource.text = sourcePoint
+                self?.lblDistination.text = distinationPoint
+                if transportType == "Walking" {
+                    self?.mapViewModel.showRouteOnMap(pickupCoordinate: sourceCoordinates, destinationCoordinate: distinationCoordinates, transportType: .walking, complesherHandler: { routes in
+                        self?.displayRoutes(routes)
+                    })
+                }else {
+                    self?.mapViewModel.showRouteOnMap(pickupCoordinate: sourceCoordinates, destinationCoordinate: distinationCoordinates, transportType: .automobile, complesherHandler: { routes in
+                        self?.displayRoutes(routes)
+                    })
+                }
+                
             }
         }
     }

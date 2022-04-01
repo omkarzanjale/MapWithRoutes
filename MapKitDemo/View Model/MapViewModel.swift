@@ -9,7 +9,9 @@ import Foundation
 import MapKit
 
 class MapViewModel {
-    
+    //
+    //MARK: GetCoordinates From name
+    //
     func searchBaseOn(name: String, complisherHandler: @escaping (CLLocationCoordinate2D)->()) {
         let localSearchRequest = MKLocalSearch.Request()
         localSearchRequest.naturalLanguageQuery = name
@@ -21,18 +23,16 @@ class MapViewModel {
             complisherHandler(coordinate)
         }
     }
-    
-    
     //
     //MARK: Show Route
     //
-    func showRouteOnMap(pickupCoordinate: CLLocationCoordinate2D, destinationCoordinate: CLLocationCoordinate2D, complesherHandler: @escaping ([MKRoute])->()) {
+    func showRouteOnMap(pickupCoordinate: CLLocationCoordinate2D, destinationCoordinate: CLLocationCoordinate2D, transportType: MKDirectionsTransportType, complesherHandler: @escaping ([MKRoute])->()) {
         
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: pickupCoordinate, addressDictionary: nil))
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destinationCoordinate, addressDictionary: nil))
         request.requestsAlternateRoutes = true
-        request.transportType = .automobile
+        request.transportType = transportType
         
         let directions = MKDirections(request: request)
         
