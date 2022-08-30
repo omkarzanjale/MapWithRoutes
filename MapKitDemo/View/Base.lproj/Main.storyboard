@@ -272,7 +272,7 @@
                     </view>
                     <navigationItem key="navigationItem" id="eVa-C7-6lQ">
                         <rightBarButtonItems>
-                            <barButtonItem image="Search" width="20" id="sNb-7L-l6g">
+                            <barButtonItem enabled="NO" image="Search" width="20" id="sNb-7L-l6g">
                                 <color key="tintColor" systemColor="labelColor"/>
                                 <connections>
                                     <action selector="searchBtnAction:" destination="BYZ-38-t0r" id="Az2-aW-THy"/>
@@ -498,11 +498,11 @@
         <image name="CurrentLocation" width="48" height="48"/>
         <image name="Pin" width="64" height="64"/>
         <image name="Search" width="48" height="48"/>
-        <image name="circle" catalog="system" width="128" height="121"/>
+        <image name="circle" catalog="system" width="32" height="32"/>
         <image name="directions" width="40" height="40"/>
-        <image name="mappin" catalog="system" width="105" height="128"/>
-        <image name="multiply.circle" catalog="system" width="128" height="121"/>
-        <image name="point.topleft.down.curvedto.point.bottomright.up" catalog="system" width="121" height="128"/>
+        <image name="mappin" catalog="system" width="32" height="32"/>
+        <image name="multiply.circle" catalog="system" width="32" height="32"/>
+        <image name="point.topleft.down.curvedto.point.bottomright.up" catalog="system" width="32" height="32"/>
         <systemColor name="labelColor">
             <color white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
